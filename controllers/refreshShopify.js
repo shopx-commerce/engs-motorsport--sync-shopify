@@ -1,8 +1,8 @@
-import fs from "fs";
 import prisma from "../helpers/prisma.js";
 import client from "../helpers/shopifyAdmin.js";
 import operation from "../operations/productSet.js";
 import generateProductSetInput from "../helpers/generateProductSetInput.js";
+import createLogger from "../helpers/logger.js";
 
 // Flag to track if a refresh operation is currently running
 let isRefreshInProgress = false;
@@ -29,10 +29,14 @@ const refreshShopify = async (req, res) => {
     status: "started",
   });
 
+  // Initialize separate loggers for different response types
+  const responseLogger = createLogger("response");
+
   // Continue with the operation after sending the response
   try {
     // Implement batch processing instead of loading all products at once
     const batchSize = 1000;
+    const logFlushInterval = 50; // Flush logs every 50 responses
     let skip = 0;
     let processedCount = 0;
     let hasMoreProducts = true;
@@ -42,11 +46,6 @@ const refreshShopify = async (req, res) => {
     while (hasMoreProducts) {
       // Fetch a batch of products
       const productBatch = await prisma.products.findMany({
-        where: {
-          action_required: {
-            not: null,
-          },
-        },
         orderBy: {
           id: "asc",
         },
@@ -68,18 +67,25 @@ const refreshShopify = async (req, res) => {
 
       // Process each product in the current batch
       for (const product of productBatch) {
+        if (product.action_required === null) {
+          continue;
+        }
+
         const variables = await generateProductSetInput(product);
         const response = await client.request(operation, { variables });
 
         // Add a delay of 1 second after each Shopify request
         await sleep(1000);
 
-        fs.appendFileSync(
-          `response-${new Date().toISOString().split("T")[0]}.jsonl`,
-          `${JSON.stringify(response, null, 2)}\n`
-        );
+        // Buffer the response instead of writing to disk immediately
+        responseLogger.logResponse(response);
 
         processedCount++;
+
+        // Flush logs periodically to avoid memory buildup
+        if (responseLogger.getBufferSize() >= logFlushInterval) {
+          await responseLogger.flushLogs();
+        }
       }
 
       // Update action_required to null for all products in this batch
@@ -98,6 +104,9 @@ const refreshShopify = async (req, res) => {
       console.log(
         `Set action_required to null for ${productIds.length} products`
       );
+
+      // Flush logs at the end of each batch
+      await responseLogger.flushLogs();
 
       // Move to the next batch
       skip += batchSize;

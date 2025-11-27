@@ -48,6 +48,8 @@ model products {
   original_option_name    String?
   weight_unit             String?
   actual_weight           Float?
+  tags                    String[]
+  accessories             String[]
 
   @@index([sku])
   @@index([url_handle])
@@ -57,4 +59,13 @@ enum action_required {
   create
   update
   delete
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model categories {
+  id              BigInt           @id @default(autoincrement())
+  name            String?
+  detail          Json[]           @db.Json
+  created_at      DateTime         @default(now()) @db.Timestamptz(6)
+  action_required action_required?
 }

@@ -1,4 +1,5 @@
-import getWholesaleTag from "./getWholesaleTag.js";
+import getAccessories from "./getAccessories.js";
+import getExistingProductData from "./getExistingProductData.js";
 
 /**
  * @typedef {Object} Product
@@ -31,6 +32,7 @@ import getWholesaleTag from "./getWholesaleTag.js";
  * @property {string|null} weight_unit - Weight measurement unit
  * @property {number|null} actual_weight - Actual product weight
  * @property {string[]|null} tags - Array of product tags
+ * @property {string[]|null} accessories - Array of accessory product handles
  */
 
 const generateProductSetInput = async (product) => {
@@ -61,9 +63,17 @@ const generateProductSetInput = async (product) => {
     },
   ];
 
+  const { wholesaleTag, variants: existingVariants } = identifier
+    ? await getExistingProductData(product.url_handle, true)
+    : { wholesaleTag: "wholesale::18", variants: [] };
+
   const variants =
     option_values !== null
       ? option_values.map((option) => {
+          const currentVariant = existingVariants.find(
+            (variant) => variant.sku === option.sku
+          );
+
           return {
             optionValues: {
               name: option.variant_value,
@@ -71,7 +81,7 @@ const generateProductSetInput = async (product) => {
             },
             price: option.sales_price,
             inventoryItem: {
-              tracked: false,
+              tracked: true,
               sku: option.sku,
               cost: option.buy_price,
               measurement: product.actual_weight
@@ -83,7 +93,10 @@ const generateProductSetInput = async (product) => {
                   }
                 : null,
             },
-            inventoryPolicy: "CONTINUE",
+            inventoryPolicy:
+              currentVariant?.inventoryQuantity > 0 || option.in_stock
+                ? "CONTINUE"
+                : "DENY",
             metafields: [
               {
                 key: "in_stock",
@@ -128,7 +141,7 @@ const generateProductSetInput = async (product) => {
             ],
             price: product.sales_price,
             inventoryItem: {
-              tracked: false,
+              tracked: true,
               sku: product.sku,
               cost: product.buy_price,
               measurement: product.actual_weight
@@ -140,7 +153,12 @@ const generateProductSetInput = async (product) => {
                   }
                 : null,
             },
-            inventoryPolicy: "CONTINUE",
+            inventoryPolicy:
+              (existingVariants.length > 0 &&
+                existingVariants[0]?.inventoryQuantity > 0) ||
+              product.in_stock
+                ? "CONTINUE"
+                : "DENY",
             metafields: [
               {
                 key: "in_stock",
@@ -178,9 +196,10 @@ const generateProductSetInput = async (product) => {
           },
         ];
 
-  const wholesaleTag = identifier
-    ? await getWholesaleTag(product.url_handle)
-    : "wholesale::18";
+  const accessories =
+    product.accessories?.length > 0
+      ? await getAccessories(product.accessories)
+      : [];
 
   return {
     identifier,
@@ -192,11 +211,20 @@ const generateProductSetInput = async (product) => {
         originalSource: image,
       })),
       handle: product.url_handle,
-      status: "ACTIVE",
+      status: product.action_required === "delete" ? "DRAFT" : "ACTIVE",
+      metafields: [
+        {
+          key: "accessories",
+          namespace: "custom",
+          value: accessories || [],
+          type: "list.product_reference",
+        },
+      ],
+      // prefix product tags with filter::
       tags: [
         wholesaleTag,
         product.shipping_class,
-        ...(product.tags || []),
+        ...(product.tags || []).map((tag) => `filter::${tag}`),
       ].filter(Boolean),
       productOptions,
       variants,
