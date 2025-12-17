@@ -35,7 +35,7 @@ import getExistingProductData from "./getExistingProductData.js";
  * @property {string[]|null} accessories - Array of accessory product handles
  */
 
-const generateProductSetInput = async (product) => {
+const generateProductSetInput = async (product, existingProductData = null) => {
   const identifier =
     product.action_required === "update" || product.action_required === "delete"
       ? {
@@ -63,9 +63,12 @@ const generateProductSetInput = async (product) => {
     },
   ];
 
-  const { wholesaleTag, variants: existingVariants } = identifier
-    ? await getExistingProductData(product.url_handle, true)
-    : { wholesaleTag: "wholesale::18", variants: [] };
+  const existingData = identifier
+    ? existingProductData ||
+      (await getExistingProductData(product.url_handle, true))
+    : { wholesaleTag: "wholesale::18", variants: [], tags: [] };
+
+  const { wholesaleTag, variants: existingVariants } = existingData;
 
   const variants =
     option_values !== null
