@@ -35,6 +35,12 @@ import getExistingProductData from "./getExistingProductData.js";
  * @property {string[]|null} accessories - Array of accessory product handles
  */
 
+// Comma-separated list of tags in Shopify that should prevent updates
+const SHOPIFY_SKIP_TAGS = (process.env.SHOPIFY_SKIP_TAGS || "skip-product")
+  .split(",")
+  .map((tag) => tag.trim().toLowerCase())
+  .filter(Boolean);
+
 const generateProductSetInput = async (product, existingProductData = null) => {
   const identifier =
     product.action_required === "update" || product.action_required === "delete"
@@ -67,6 +73,21 @@ const generateProductSetInput = async (product, existingProductData = null) => {
     ? existingProductData ||
       (await getExistingProductData(product.url_handle, true))
     : { wholesaleTag: "wholesale::18", variants: [], tags: [] };
+
+  // Check for skip tags if this is an update or delete operation
+  if (identifier && SHOPIFY_SKIP_TAGS.length > 0) {
+    const existingTags = existingData.tags || [];
+    const hasSkipTag = existingTags.some((tag) =>
+      SHOPIFY_SKIP_TAGS.includes(tag.toLowerCase())
+    );
+
+    if (hasSkipTag) {
+      return {
+        type: "skip_product",
+        message: `Product ${product.url_handle || product.id} skipped due to Shopify tag`,
+      };
+    }
+  }
 
   const { wholesaleTag, variants: existingVariants } = existingData;
 
@@ -205,32 +226,35 @@ const generateProductSetInput = async (product, existingProductData = null) => {
       : [];
 
   return {
-    identifier,
-    input: {
-      title: product.title,
-      descriptionHtml: product.description,
-      files: product.image_urls.map((image) => ({
-        contentType: "IMAGE",
-        originalSource: image,
-      })),
-      handle: product.url_handle,
-      status: product.action_required === "delete" ? "DRAFT" : "ACTIVE",
-      metafields: [
-        {
-          key: "accessories",
-          namespace: "custom",
-          value: accessories || [],
-          type: "list.product_reference",
-        },
-      ],
-      // prefix product tags with filter::
-      tags: [
-        wholesaleTag,
-        product.shipping_class,
-        ...(product.tags || []).map((tag) => `filter::${tag}`),
-      ].filter(Boolean),
-      productOptions,
-      variants,
+    type: "success",
+    data: {
+      identifier,
+      input: {
+        title: product.title,
+        descriptionHtml: product.description,
+        files: product.image_urls.map((image) => ({
+          contentType: "IMAGE",
+          originalSource: image,
+        })),
+        handle: product.url_handle,
+        status: product.action_required === "delete" ? "DRAFT" : "ACTIVE",
+        metafields: [
+          {
+            key: "accessories",
+            namespace: "custom",
+            value: accessories || [],
+            type: "list.product_reference",
+          },
+        ],
+        // prefix product tags with filter::
+        tags: [
+          wholesaleTag,
+          product.shipping_class,
+          ...(product.tags || []).map((tag) => `filter::${tag}`),
+        ].filter(Boolean),
+        productOptions,
+        variants,
+      },
     },
   };
 };

@@ -3,19 +3,12 @@ import client from "../helpers/shopifyAdmin.js";
 import operation from "../operations/productSet.js";
 import generateProductSetInput from "../helpers/generateProductSetInput.js";
 import createLogger from "../helpers/logger.js";
-import getExistingProductData from "../helpers/getExistingProductData.js";
 
 // Flag to track if a refresh operation is currently running
 let isRefreshInProgress = false;
 
 // Helper function to create a delay
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Comma-separated list of tags in Shopify that should prevent updates
-const SHOPIFY_SKIP_TAGS = (process.env.SHOPIFY_SKIP_TAGS || "skip-product")
-  .split(",")
-  .map((tag) => tag.trim().toLowerCase())
-  .filter(Boolean);
 
 const refreshShopify = async (req, res) => {
   // Check if a refresh is already in progress
@@ -78,33 +71,16 @@ const refreshShopify = async (req, res) => {
           continue;
         }
 
-        let existingProductData = null;
+        const result = await generateProductSetInput(product);
 
-        if (product.action_required !== "create" && SHOPIFY_SKIP_TAGS.length) {
-          existingProductData = await getExistingProductData(
-            product.url_handle,
-            true
-          );
-
-          const existingTags = existingProductData.tags || [];
-          const hasSkipTag = existingTags.some((tag) =>
-            SHOPIFY_SKIP_TAGS.includes(tag.toLowerCase())
-          );
-
-          if (hasSkipTag) {
-            console.log(
-              `Skipping product ${
-                product.url_handle || product.id
-              } due to protected Shopify tag`
-            );
-            continue;
-          }
+        // Check if product should be skipped
+        if (result.type === "skip_product") {
+          console.log(result.message);
+          continue;
         }
 
-        const variables = await generateProductSetInput(
-          product,
-          existingProductData
-        );
+        // Process the product with Shopify
+        const variables = result.data;
         const response = await client.request(operation, { variables });
 
         // Add a delay of 1 second after each Shopify request
