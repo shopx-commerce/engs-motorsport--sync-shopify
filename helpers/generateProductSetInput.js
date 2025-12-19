@@ -69,27 +69,20 @@ const generateProductSetInput = async (product, existingProductData = null) => {
     },
   ];
 
-  const existingData = identifier
+  const { wholesaleTag, variants: existingVariants, tags } = identifier
     ? existingProductData ||
       (await getExistingProductData(product.url_handle, true))
     : { wholesaleTag: "wholesale::18", variants: [], tags: [] };
 
-  // Check for skip tags if this is an update or delete operation
   if (identifier && SHOPIFY_SKIP_TAGS.length > 0) {
-    const existingTags = existingData.tags || [];
-    const hasSkipTag = existingTags.some((tag) =>
-      SHOPIFY_SKIP_TAGS.includes(tag.toLowerCase())
-    );
-
-    if (hasSkipTag) {
+    const existingTags = tags || [];
+    if (existingTags.some((tag) => SHOPIFY_SKIP_TAGS.includes(tag.toLowerCase()))) {
       return {
         type: "skip_product",
         message: `Product ${product.url_handle || product.id} skipped due to Shopify tag`,
       };
     }
   }
-
-  const { wholesaleTag, variants: existingVariants } = existingData;
 
   const variants =
     option_values !== null
