@@ -10,10 +10,11 @@ async function getExistingProductData(handle, includeVariants = false) {
     return {
       wholesaleTag: "wholesale::18",
       variants: [],
+      tags: [],
     };
   }
 
-  const tags = product.tags;
+  const tags = product.tags || [];
   const wholesaleTag =
     tags?.find((tag) => tag.startsWith("wholesale::")) || "wholesale::18";
 
@@ -33,6 +34,7 @@ async function getExistingProductData(handle, includeVariants = false) {
   return {
     wholesaleTag,
     variants,
+    tags,
   };
 }
 

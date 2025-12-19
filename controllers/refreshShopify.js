@@ -71,7 +71,16 @@ const refreshShopify = async (req, res) => {
           continue;
         }
 
-        const variables = await generateProductSetInput(product);
+        const result = await generateProductSetInput(product);
+
+        // Check if product should be skipped
+        if (result.type === "skip_product") {
+          console.log(result.message);
+          continue;
+        }
+
+        // Process the product with Shopify
+        const variables = result.data;
         const response = await client.request(operation, { variables });
 
         // Add a delay of 1 second after each Shopify request
