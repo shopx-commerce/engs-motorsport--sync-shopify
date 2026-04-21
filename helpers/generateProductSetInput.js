@@ -69,12 +69,14 @@ const generateProductSetInput = async (product, existingProductData = null) => {
     },
   ];
 
-  const { wholesaleTag, variants: existingVariants, tags } = identifier
-    ? existingProductData ||
-      (await getExistingProductData(product.url_handle, true))
-    : { wholesaleTag: "wholesale::18", variants: [], tags: [] };
+  const shopifyState =
+    existingProductData ??
+    (await getExistingProductData(product.url_handle, true));
+  const { exists: existsInShopify, wholesaleTag, variants: existingVariants, tags } =
+    shopifyState;
+  const exists = Boolean(existsInShopify);
 
-  if (identifier && SHOPIFY_SKIP_TAGS.length > 0) {
+  if (exists && SHOPIFY_SKIP_TAGS.length > 0) {
     const existingTags = tags || [];
     if (existingTags.some((tag) => SHOPIFY_SKIP_TAGS.includes(tag.toLowerCase()))) {
       return {
@@ -88,9 +90,11 @@ const generateProductSetInput = async (product, existingProductData = null) => {
     option_values?.some((o) => o.sku?.includes("/")) ||
     product.sku?.includes("/");
 
-  if (hasCombinedSku) {
+  const includeSkuInPayload = !exists || !hasCombinedSku;
+
+  if (exists && hasCombinedSku) {
     console.log(
-      `Product ${product.url_handle || product.id} has combined SKU — SKU and tags will not be updated`
+      `Product ${product.url_handle || product.id} exists in Shopify with combined SKU — omitting SKU from sync payload`
     );
   }
 
@@ -109,6 +113,7 @@ const generateProductSetInput = async (product, existingProductData = null) => {
             price: option.sales_price,
             inventoryItem: {
               tracked: true,
+              ...(includeSkuInPayload ? { sku: option.sku } : {}),
               cost: option.buy_price,
               measurement: product.actual_weight
                 ? {
@@ -168,6 +173,7 @@ const generateProductSetInput = async (product, existingProductData = null) => {
             price: product.sales_price,
             inventoryItem: {
               tracked: true,
+              ...(includeSkuInPayload ? { sku: product.sku } : {}),
               cost: product.buy_price,
               measurement: product.actual_weight
                 ? {
@@ -247,6 +253,15 @@ const generateProductSetInput = async (product, existingProductData = null) => {
             type: "list.product_reference",
           },
         ],
+        ...(!exists
+          ? {
+              tags: [
+                wholesaleTag,
+                product.shipping_class,
+                ...(product.tags || []).map((tag) => `filter::${tag}`),
+              ].filter(Boolean),
+            }
+          : {}),
         productOptions,
         variants,
       },
