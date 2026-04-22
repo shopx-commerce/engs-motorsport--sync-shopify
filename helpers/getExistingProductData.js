@@ -8,7 +8,6 @@ async function getExistingProductData(handle, includeVariants = false) {
 
   if (!product) {
     return {
-      exists: false,
       wholesaleTag: "wholesale::18",
       variants: [],
       tags: [],
@@ -33,7 +32,6 @@ async function getExistingProductData(handle, includeVariants = false) {
     }) || [];
 
   return {
-    exists: true,
     wholesaleTag,
     variants,
     tags,
