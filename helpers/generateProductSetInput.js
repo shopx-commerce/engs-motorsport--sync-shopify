@@ -41,6 +41,12 @@ const SHOPIFY_SKIP_TAGS = (process.env.SHOPIFY_SKIP_TAGS || "skip-product")
   .map((tag) => tag.trim().toLowerCase())
   .filter(Boolean);
 
+// Tags that keep Shopify title and descriptionHtml; all other fields still sync from DB
+const SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS = (process.env.SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS || "skip_title_description")
+  .split(",")
+  .map((tag) => tag.trim().toLowerCase())
+  .filter(Boolean);
+
 const generateProductSetInput = async (product, existingProductData = null) => {
   const identifier =
     product.action_required === "update" || product.action_required === "delete"
@@ -69,10 +75,10 @@ const generateProductSetInput = async (product, existingProductData = null) => {
     },
   ];
 
-  const { wholesaleTag, variants: existingVariants, tags } = identifier
+  const { wholesaleTag, variants: existingVariants, tags, title: existingShopifyTitle,descriptionHtml: existingShopifyDescriptionHtml} = identifier
     ? existingProductData ||
       (await getExistingProductData(product.url_handle, true))
-    : { wholesaleTag: "wholesale::18", variants: [], tags: [] };
+    : { wholesaleTag: "wholesale::18", variants: [], tags: [], title: null, descriptionHtml: null };
 
   if (identifier && SHOPIFY_SKIP_TAGS.length > 0) {
     const existingTags = tags || [];
@@ -83,6 +89,12 @@ const generateProductSetInput = async (product, existingProductData = null) => {
       };
     }
   }
+
+  const skipTitleDescription =
+    identifier && SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS.length > 0 &&
+    (tags || []).some((tag) =>
+      SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS.includes(tag.toLowerCase())
+    );
 
   const hasCombinedSku =
     option_values?.some((o) => o.sku?.includes("/")) ||
@@ -230,13 +242,20 @@ const generateProductSetInput = async (product, existingProductData = null) => {
       ? await getAccessories(product.accessories)
       : [];
 
+  const title = skipTitleDescription
+    ? (existingShopifyTitle ?? product.title)
+    : product.title;
+  const descriptionHtml = skipTitleDescription
+    ? (existingShopifyDescriptionHtml ?? "")
+    : product.description;
+
   return {
     type: "success",
     data: {
       identifier,
       input: {
-        title: product.title,
-        descriptionHtml: product.description,
+        title,
+        descriptionHtml,
         files: product.image_urls.map((image) => ({
           contentType: "IMAGE",
           originalSource: image,

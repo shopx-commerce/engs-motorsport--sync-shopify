@@ -2,6 +2,8 @@ const operation = `
   query getProductByIdentifier($handle: String!, $includeVariants: Boolean!) {
     productByIdentifier(identifier: {handle: $handle}) {
       id
+      title
+      descriptionHtml
       tags
       variants(first: 250) @include(if: $includeVariants) {
         nodes {
