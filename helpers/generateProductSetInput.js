@@ -84,6 +84,18 @@ const generateProductSetInput = async (product, existingProductData = null) => {
     }
   }
 
+  const hasCombinedSku =
+    option_values?.some((o) => o.sku?.includes("/")) ||
+    product.sku?.includes("/");
+
+  const includeSkuInPayload = !hasCombinedSku;
+
+  if (hasCombinedSku) {
+    console.log(
+      `Product ${product.url_handle || product.id} has combined SKU — omitting SKU from sync payload`
+    );
+  }
+
   const variants =
     option_values !== null
       ? option_values.map((option) => {
@@ -99,7 +111,7 @@ const generateProductSetInput = async (product, existingProductData = null) => {
             price: option.sales_price,
             inventoryItem: {
               tracked: true,
-              sku: option.sku,
+              ...(includeSkuInPayload ? { sku: option.sku } : {}),
               cost: option.buy_price,
               measurement: product.actual_weight
                 ? {
@@ -159,7 +171,7 @@ const generateProductSetInput = async (product, existingProductData = null) => {
             price: product.sales_price,
             inventoryItem: {
               tracked: true,
-              sku: product.sku,
+              ...(includeSkuInPayload ? { sku: product.sku } : {}),
               cost: product.buy_price,
               measurement: product.actual_weight
                 ? {
@@ -239,7 +251,6 @@ const generateProductSetInput = async (product, existingProductData = null) => {
             type: "list.product_reference",
           },
         ],
-        // prefix product tags with filter::
         tags: [
           wholesaleTag,
           product.shipping_class,
