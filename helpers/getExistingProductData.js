@@ -11,6 +11,8 @@ async function getExistingProductData(handle, includeVariants = false) {
       wholesaleTag: "wholesale::18",
       variants: [],
       tags: [],
+      title: null,
+      descriptionHtml: null,
     };
   }
 
@@ -35,6 +37,8 @@ async function getExistingProductData(handle, includeVariants = false) {
     wholesaleTag,
     variants,
     tags,
+    title: product.title ?? null,
+    descriptionHtml: product.descriptionHtml ?? null,
   };
 }
 
