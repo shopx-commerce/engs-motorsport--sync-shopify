@@ -96,6 +96,12 @@ const generateProductSetInput = async (product, existingProductData = null) => {
       SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS.includes(tag.toLowerCase())
     );
 
+  if (skipTitleDescription) {
+    console.log(
+      `Product ${product.url_handle || product.id} — keeping Shopify title and description (skip tag); syncing other fields`
+    );
+  }
+
   const hasCombinedSku =
     option_values?.some((o) => o.sku?.includes("/")) ||
     product.sku?.includes("/");
@@ -266,7 +272,7 @@ const generateProductSetInput = async (product, existingProductData = null) => {
           {
             key: "accessories",
             namespace: "custom",
-            value: accessories || [],
+            value: JSON.stringify(accessories || []),
             type: "list.product_reference",
           },
         ],
