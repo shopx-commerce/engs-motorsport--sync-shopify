@@ -41,7 +41,7 @@ const SHOPIFY_SKIP_TAGS = (process.env.SHOPIFY_SKIP_TAGS || "skip-product")
   .map((tag) => tag.trim().toLowerCase())
   .filter(Boolean);
 
-// Tags that keep Shopify title and descriptionHtml; all other fields still sync from DB
+// Tags that keep Shopify title, descriptionHtml and tags; all other fields still sync from DB
 const SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS = (process.env.SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS || "skip_title_description")
   .split(",")
   .map((tag) => tag.trim().toLowerCase())
@@ -75,10 +75,10 @@ const generateProductSetInput = async (product, existingProductData = null) => {
     },
   ];
 
-  const { wholesaleTag, variants: existingVariants, tags, title: existingShopifyTitle,descriptionHtml: existingShopifyDescriptionHtml} = identifier
+  const { wholesaleTag, variants: existingVariants, tags } = identifier
     ? existingProductData ||
       (await getExistingProductData(product.url_handle, true))
-    : { wholesaleTag: "wholesale::18", variants: [], tags: [], title: null, descriptionHtml: null };
+    : { wholesaleTag: "wholesale::18", variants: [], tags: [] };
 
   if (identifier && SHOPIFY_SKIP_TAGS.length > 0) {
     const existingTags = tags || [];
@@ -98,7 +98,7 @@ const generateProductSetInput = async (product, existingProductData = null) => {
 
   if (skipTitleDescription) {
     console.log(
-      `Product ${product.url_handle || product.id} — keeping Shopify title and description (skip tag); syncing other fields`
+      `Product ${product.url_handle || product.id} — excluding Shopify title, description and tags (skip tag); syncing other fields`
     );
   }
 
@@ -248,20 +248,29 @@ const generateProductSetInput = async (product, existingProductData = null) => {
       ? await getAccessories(product.accessories)
       : [];
 
-  const title = skipTitleDescription
-    ? (existingShopifyTitle ?? product.title)
-    : product.title;
-  const descriptionHtml = skipTitleDescription
-    ? (existingShopifyDescriptionHtml ?? "")
-    : product.description;
+  const titleAndDescription = skipTitleDescription
+    ? {}
+    : {
+        title: product.title,
+        descriptionHtml: product.description,
+      };
+
+  const tagsField = skipTitleDescription
+    ? {}
+    : {
+        tags: [
+          wholesaleTag,
+          product.shipping_class,
+          ...(product.tags || []).map((tag) => `filter::${tag}`),
+        ].filter(Boolean),
+      };
 
   return {
     type: "success",
     data: {
       identifier,
       input: {
-        title,
-        descriptionHtml,
+        ...titleAndDescription,
         files: product.image_urls.map((image) => ({
           contentType: "IMAGE",
           originalSource: image,
@@ -276,11 +285,7 @@ const generateProductSetInput = async (product, existingProductData = null) => {
             type: "list.product_reference",
           },
         ],
-        tags: [
-          wholesaleTag,
-          product.shipping_class,
-          ...(product.tags || []).map((tag) => `filter::${tag}`),
-        ].filter(Boolean),
+        ...tagsField,
         productOptions,
         variants,
       },
