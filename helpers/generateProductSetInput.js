@@ -42,7 +42,7 @@ const SHOPIFY_SKIP_TAGS = (process.env.SHOPIFY_SKIP_TAGS || "skip-product")
   .filter(Boolean);
 
 // Tags that keep Shopify title, descriptionHtml and tags; all other fields still sync from DB
-const SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS = (process.env.SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS || "skip_title_description")
+const SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS = (process.env.SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS || "skip-title-description")
   .split(",")
   .map((tag) => tag.trim().toLowerCase())
   .filter(Boolean);
@@ -80,26 +80,32 @@ const generateProductSetInput = async (product, existingProductData = null) => {
       (await getExistingProductData(product.url_handle, true))
     : { wholesaleTag: "wholesale::18", variants: [], tags: [] };
 
-  if (identifier && SHOPIFY_SKIP_TAGS.length > 0) {
-    const existingTags = tags || [];
-    if (existingTags.some((tag) => SHOPIFY_SKIP_TAGS.includes(tag.toLowerCase()))) {
-      return {
-        type: "skip_product",
-        message: `Product ${product.url_handle || product.id} skipped due to Shopify tag`,
-      };
-    }
-  }
+  const shopifyTags = tags || [];
+
+  const skipProductTagMatch =
+    identifier && SHOPIFY_SKIP_TAGS.length > 0
+      ? shopifyTags.find((tag) =>
+          SHOPIFY_SKIP_TAGS.includes(String(tag).toLowerCase())
+        )
+      : undefined;
 
   const skipTitleDescription =
-    identifier && SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS.length > 0 &&
-    (tags || []).some((tag) =>
-      SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS.includes(tag.toLowerCase())
+    Boolean(identifier) &&
+    SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS.length > 0 &&
+    shopifyTags.some((tag) =>
+      SHOPIFY_SKIP_TITLE_DESCRIPTION_TAGS.includes(String(tag).toLowerCase())
     );
 
   if (skipTitleDescription) {
     console.log(
       `Product ${product.url_handle || product.id} — excluding Shopify title, description and tags (skip tag); syncing other fields`
     );
+  }
+  if (skipProductTagMatch) {
+    return {
+      type: "skip_product",
+      message: `Product ${product.url_handle || product.id} skipped due to Shopify tag "${skipProductTagMatch}"`,
+    };
   }
 
   const hasCombinedSku =
